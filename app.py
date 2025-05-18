@@ -104,9 +104,3 @@ if uploaded_file:
 
 else:
     st.info("Lütfen yukarıdan Excel dosyanızı yükleyin.")
-
-
-        csv = result_df.to_csv(index=False).encode("utf-8")
-        st.download_button("📥 Sonuçları İndir (CSV)", csv, "rota_sonuclari.csv", "text/csv")
-    else:
-        st.error("Excel dosyasında 'Çıkış' ve 'Varış' sütunları bulunmalı.")
