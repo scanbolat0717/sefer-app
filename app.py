@@ -55,7 +55,7 @@ if uploaded_file:
 
         routes = []
         for idx, row in df.iterrows():
-            try:
+try:
     origin = [float(i.strip()) for i in str(row["Çıkış"]).split(",")]
     destination = [float(i.strip()) for i in str(row["Varış"]).split(",")]
     if len(origin) != 2 or len(destination) != 2:
