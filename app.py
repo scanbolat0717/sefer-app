@@ -21,14 +21,29 @@ def get_route_distance(origin, destination):
     body = {
         "coordinates": [origin, destination]
     }
-    response = requests.post(url, json=body, headers=headers)
-    if response.status_code == 200:
+
+    try:
+        response = requests.post(url, json=body, headers=headers)
         data = response.json()
-        distance_km = data["features"][0]["properties"]["summary"]["distance"] / 1000
-        geometry = data["features"][0]["geometry"]["coordinates"]
+
+        # Geçersiz istek kontrolü
+        if response.status_code != 200:
+            st.warning(f"ORS API hatası ({response.status_code}): {data.get('error', {}).get('message', 'Bilinmeyen hata')}")
+            return None, None
+
+        features = data.get("features", [])
+        if not features:
+            st.warning("Rota bulunamadı. Lütfen koordinatları kontrol et.")
+            return None, None
+
+        distance_km = features[0]["properties"]["summary"]["distance"] / 1000
+        geometry = features[0]["geometry"]["coordinates"]
         return round(distance_km, 2), geometry
-    else:
+
+    except Exception as e:
+        st.error(f"Beklenmeyen bir hata oluştu: {e}")
         return None, None
+
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
