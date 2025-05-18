@@ -4,21 +4,40 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# ORS API anahtarınızı buraya yazın
+# 🔐 ORS API KEY (buraya kendi API anahtarınızı yazın)
 ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"
 
-# Yavuz Sultan Selim Köprüsü koordinatları (lon, lat)
+# 🛣️ Yavuz Sultan Selim Köprüsü koordinatları (lon, lat)
 YSS_COORDS = [29.0729, 41.1858]
 
+# Asya ve Avrupa yakası ilçeleri
+asya_ilceler = [
+    "Üsküdar", "Kadıköy", "Ataşehir", "Maltepe", "Kartal", "Pendik",
+    "Tuzla", "Sancaktepe", "Sultanbeyli", "Çekmeköy", "Ümraniye", "Şile", "Beykoz"
+]
+avrupa_ilceler = [
+    "Fatih", "Eminönü", "Bakırköy", "Beşiktaş", "Şişli", "Sarıyer",
+    "Eyüpsultan", "Kağıthane", "Bayrampaşa", "Zeytinburnu", "Avcılar",
+    "Beylikdüzü", "Esenyurt", "Başakşehir", "Bağcılar", "Gaziosmanpaşa", "Küçükçekmece"
+]
+
+def get_kita(ilce_adi):
+    ilce = ilce_adi.lower()
+    for i in asya_ilceler:
+        if i.lower() in ilce:
+            return "asya"
+    for i in avrupa_ilceler:
+        if i.lower() in ilce:
+            return "avrupa"
+    return None  # İstanbul dışı
+
 def get_coordinates(address):
-    """ORS Geocoding API ile adresi koordinata çevirir"""
     url = "https://api.openrouteservice.org/geocode/search"
     headers = {
         "Authorization": ORS_API_KEY,
         "Content-Type": "application/json"
     }
     params = {
-        "api_key": ORS_API_KEY,
         "text": address,
         "boundary.country": "TR"
     }
@@ -31,7 +50,6 @@ def get_coordinates(address):
         return None
 
 def get_route_with_ors(origin, destination, use_yss=False):
-    """ORS Directions API ile rota alır (YSS dahil)"""
     try:
         if use_yss:
             coords = [origin, YSS_COORDS, destination]
@@ -60,8 +78,8 @@ def get_route_with_ors(origin, destination, use_yss=False):
     except Exception as e:
         return None, None
 
-# Streamlit Arayüz
-st.title("🚐 İlçe & Şehir Bazlı Sefer Rota Hesaplama (ORS + YSS Köprüsü)")
+# 🌐 Streamlit Arayüzü
+st.title("🛣️ İlçe Bazlı Rota Hesaplama (YSS Köprüsü Zorunlu)")
 
 uploaded_file = st.file_uploader("📥 Excel dosyasını yükleyin (Çıkış ve Varış sütunları içermeli)", type=["xlsx"])
 
@@ -91,8 +109,15 @@ if uploaded_file:
             st.warning(f"Koordinat alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
-        # İstanbul varsa YSS köprüsünü zorla
-        use_yss = "İstanbul" in origin_text or "İstanbul" in dest_text
+        # Kıtalar arası geçiş kontrolü
+        origin_kita = get_kita(origin_text)
+        dest_kita = get_kita(dest_text)
+
+        use_yss = (
+            (origin_kita == "asya" and dest_kita == "avrupa") or
+            (origin_kita == "avrupa" and dest_kita == "asya")
+        )
+
         distance_km, route = get_route_with_ors(origin_coords, dest_coords, use_yss=use_yss)
 
         if distance_km is None or route is None:
@@ -113,5 +138,3 @@ if uploaded_file:
         st.write(f"Toplam mesafe: **{toplam_mesafe:.2f} km**")
     else:
         st.warning("Hiçbir rota başarıyla hesaplanamadı.")
-
-
