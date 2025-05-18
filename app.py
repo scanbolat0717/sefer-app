@@ -4,14 +4,14 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# 🔐 ORS API KEY (buraya kendi API anahtarınızı yazın)
+# 🔐 OpenRouteService API KEY
 ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"
 
-# 🛣️ YSS rampalarının koordinatları (lon, lat)
+# YSS rampalarının koordinatları (lon, lat)
 YSS_RAMP1 = [29.0386, 41.1772]  # Asya rampası
 YSS_RAMP2 = [29.0582, 41.1821]  # Avrupa rampası
 
-# İstanbul ilçelerinin kıtaları
+# İstanbul ilçeleri
 asya_ilceler = [
     "Üsküdar", "Kadıköy", "Ataşehir", "Maltepe", "Kartal", "Pendik",
     "Tuzla", "Sancaktepe", "Sultanbeyli", "Çekmeköy", "Ümraniye", "Şile", "Beykoz"
@@ -22,16 +22,39 @@ avrupa_ilceler = [
     "Beylikdüzü", "Esenyurt", "Başakşehir", "Bağcılar", "Gaziosmanpaşa", "Küçükçekmece"
 ]
 
-def get_kita(ilce_adi):
-    ilce = ilce_adi.lower()
+# Türkiye şehirlerine göre kıta ayrımı
+asya_il_adi = [
+    "Adana", "Adıyaman", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın",
+    "Bartın", "Batman", "Bayburt", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur",
+    "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Düzce",
+    "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane",
+    "Hakkari", "Hatay", "Iğdır", "Isparta", "İçel", "İzmir", "Kahramanmaraş",
+    "Karabük", "Karaman", "Kars", "Kastamonu", "Kayseri", "Kırıkkale", "Kırşehir",
+    "Kilis", "Konya", "Kütahya", "Malatya", "Manisa", "Mardin", "Muğla", "Muş",
+    "Nevşehir", "Niğde", "Ordu", "Osmaniye", "Rize", "Sakarya", "Samsun", "Siirt",
+    "Sinop", "Sivas", "Şanlıurfa", "Şırnak", "Tokat", "Trabzon", "Tunceli", "Uşak",
+    "Van", "Yalova", "Yozgat", "Zonguldak"
+]
+avrupa_il_adi = ["Edirne", "Kırklareli", "Tekirdağ", "İstanbul"]
+
+# Kıta belirleme
+def get_kita(text):
+    ilce = text.lower()
     for i in asya_ilceler:
         if i.lower() in ilce:
             return "asya"
     for i in avrupa_ilceler:
         if i.lower() in ilce:
             return "avrupa"
+    for i in asya_il_adi:
+        if i.lower() in ilce:
+            return "asya"
+    for i in avrupa_il_adi:
+        if i.lower() in ilce:
+            return "avrupa"
     return None
 
+# ORS geocoding: adres → koordinat
 def get_coordinates(address):
     url = "https://api.openrouteservice.org/geocode/search"
     headers = {
@@ -46,10 +69,11 @@ def get_coordinates(address):
     data = response.json()
     try:
         coords = data["features"][0]["geometry"]["coordinates"]
-        return coords  # [lon, lat]
+        return coords
     except:
         return None
 
+# ORS rota alma (YSS zorunluluğu seçimiyle)
 def get_route_with_ors(origin, destination, use_yss=False):
     try:
         if use_yss:
@@ -79,8 +103,8 @@ def get_route_with_ors(origin, destination, use_yss=False):
     except Exception as e:
         return None, None
 
-# 🌐 Streamlit Arayüzü
-st.title("🛣️ İlçe Bazlı Rota Hesaplama (YSS Köprüsü Zorunlu)")
+# Streamlit arayüz
+st.title("🛣️ Türkiye Geneli İlçe Bazlı Rota (YSS Zorunlu)")
 
 uploaded_file = st.file_uploader("📥 Excel dosyasını yükleyin (Çıkış ve Varış sütunları içermeli)", type=["xlsx"])
 
@@ -95,7 +119,7 @@ if uploaded_file:
         st.error("Excel dosyasında 'Çıkış' ve 'Varış' sütunları olmalı.")
         st.stop()
 
-    m = folium.Map(location=[41.0, 29.0], zoom_start=9)
+    m = folium.Map(location=[39.0, 35.0], zoom_start=6)
     toplam_mesafe = 0
     basarili = 0
 
@@ -114,8 +138,7 @@ if uploaded_file:
         dest_kita = get_kita(dest_text)
 
         use_yss = (
-            (origin_kita == "asya" and dest_kita == "avrupa") or
-            (origin_kita == "avrupa" and dest_kita == "asya")
+            origin_kita and dest_kita and origin_kita != dest_kita
         )
 
         distance_km, route = get_route_with_ors(origin_coords, dest_coords, use_yss=use_yss)
@@ -138,5 +161,4 @@ if uploaded_file:
         st.write(f"Toplam mesafe: **{toplam_mesafe:.2f} km**")
     else:
         st.warning("Hiçbir rota başarıyla hesaplanamadı.")
-
 
