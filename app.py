@@ -8,6 +8,8 @@ from streamlit_folium import folium_static
 ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <-- BURAYA KENDİ ANAHTARINI YAZ
 
 def get_coordinates_from_text(place_name):
+    st.write(f"{origin_text} koordinatları: {origin_coords}")
+    st.write(f"{dest_text} koordinatları: {dest_coords}")
     url = "https://api.openrouteservice.org/geocode/search"
     headers = {"Authorization": ORS_API_KEY}
     params = {
