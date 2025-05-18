@@ -54,16 +54,27 @@ if uploaded_file:
         st.subheader("Rota Sonuçları")
 
         routes = []
-        for idx, row in df.iterrows():
-try:
-    origin = [float(i.strip()) for i in str(row["Çıkış"]).split(",")]
-    destination = [float(i.strip()) for i in str(row["Varış"]).split(",")]
-    if len(origin) != 2 or len(destination) != 2:
-        st.warning(f"Geçersiz koordinat formatı: {row['Çıkış']} → {row['Varış']}")
+for index, row in df.iterrows():
+    try:
+        origin = [float(i.strip()) for i in str(row["Çıkış"]).split(",")]
+        destination = [float(i.strip()) for i in str(row["Varış"]).split(",")]
+
+        if len(origin) != 2 or len(destination) != 2:
+            st.warning(f"Geçersiz koordinat formatı: {row['Çıkış']} → {row['Varış']}")
+            continue
+
+        distance, geometry = get_route_distance(origin, destination)
+
+        if distance is not None:
+            distances.append({
+                "Çıkış": row["Çıkış"],
+                "Varış": row["Varış"],
+                "Mesafe (km)": distance
+            })
+    except Exception as e:
+        st.warning(f"Koordinat işlenemedi: {e}")
         continue
-except Exception as e:
-    st.warning(f"Koordinat işlenemedi: {e}")
-    continue
+
             distance, _ = get_route_distance(origin, destination)
             routes.append({
                 "Çıkış": row["Çıkış"],
