@@ -4,10 +4,7 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# 🔐 OpenRouteService API Anahtarı
-ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # BURAYA KENDİ API ANAHTARINI YAZ
-
-# ✅ Türkiye şehirlerinin sabit koordinatları
+# Türkiye şehirlerinin sabit koordinatları (lon, lat)
 şehir_koordinatları = {
     "İstanbul": [28.9784, 41.0082],
     "Ankara": [32.8540, 39.9208],
@@ -27,32 +24,27 @@ ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # BURA
     "Mersin": [34.6415, 36.8000],
     "Denizli": [29.0870, 37.7765],
     "Manisa": [27.4217, 38.6191]
-    # Gerekirse buraya daha fazla şehir ekleyebilirsin
 }
 
 def get_coordinates_from_text(place_name):
     return şehir_koordinatları.get(place_name)
 
-def get_route_distance(origin, destination):
-    url = "https://api.openrouteservice.org/v2/directions/driving-car"
-    headers = {"Authorization": ORS_API_KEY}
-    body = {
-        "coordinates": [origin, destination]
-    }
-
+def get_route_osrm(origin, destination):
     try:
-        response = requests.post(url, json=body, headers=headers)
+        url = f"http://router.project-osrm.org/route/v1/driving/{origin[0]},{origin[1]};{destination[0]},{destination[1]}?overview=full&geometries=geojson"
+        response = requests.get(url)
         data = response.json()
-        if response.status_code != 200 or "features" not in data:
+        if response.status_code != 200 or "routes" not in data:
             return None, None
-        distance_km = data["features"][0]["properties"]["summary"]["distance"] / 1000
-        geometry = data["features"][0]["geometry"]["coordinates"]
+        distance_km = data["routes"][0]["distance"] / 1000
+        geometry = data["routes"][0]["geometry"]["coordinates"]
         return distance_km, geometry
     except Exception as e:
-        st.warning(f"ORS yanıtı işlenemedi: {e}")
+        st.warning(f"OSRM yanıtı işlenemedi: {e}")
         return None, None
 
-st.title("🗺️ Türkiye Şehirleriyle Sefer Rota ve Mesafe Hesaplayıcı")
+# Streamlit Arayüzü
+st.title("🛣️ OSRM ile Türkiye Şehir Rotaları (API'siz Çalışır)")
 
 uploaded_file = st.file_uploader("Excel dosyasını yükleyin (Çıkış ve Varış sütunlarıyla)", type=["xlsx"])
 
@@ -81,7 +73,7 @@ if uploaded_file:
             st.warning(f"Koordinat alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
-        distance, route = get_route_distance(origin_coords, dest_coords)
+        distance, route = get_route_osrm(origin_coords, dest_coords)
         if distance is None:
             st.warning(f"Rota alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
@@ -98,3 +90,4 @@ if uploaded_file:
         st.write(f"Toplam mesafe: **{sum(toplam_mesafeler):.2f} km**")
     else:
         st.warning("Hiçbir sefer başarıyla işlenemedi.")
+
