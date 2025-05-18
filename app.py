@@ -74,7 +74,6 @@ for index, row in df.iterrows():
     except Exception as e:
         st.warning(f"Koordinat işlenemedi: {e}")
         continue
-
             distance, _ = get_route_distance(origin, destination)
             routes.append({
                 "Çıkış": row["Çıkış"],
