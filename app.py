@@ -4,15 +4,15 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# ORS API Key'inizi buraya yazın
+# ORS API anahtarınızı buraya yazın
 ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"
 
-# YSS Köprüsü (3. Köprü) koordinatları (lon, lat)
+# Yavuz Sultan Selim Köprüsü koordinatları (lon, lat)
 YSS_COORDS = [29.0729, 41.1858]
 
 def get_coordinates(address):
     """ORS Geocoding API ile adresi koordinata çevirir"""
-    url = f"https://api.openrouteservice.org/geocode/search"
+    url = "https://api.openrouteservice.org/geocode/search"
     headers = {
         "Authorization": ORS_API_KEY,
         "Content-Type": "application/json"
@@ -22,7 +22,7 @@ def get_coordinates(address):
         "text": address,
         "boundary.country": "TR"
     }
-    response = requests.get(url, params=params, headers=headers)
+    response = requests.get(url, headers=headers, params=params)
     data = response.json()
     try:
         coords = data["features"][0]["geometry"]["coordinates"]
@@ -31,12 +31,12 @@ def get_coordinates(address):
         return None
 
 def get_route_with_ors(origin, destination, use_yss=False):
-    """ORS Directions API ile rota alır"""
+    """ORS Directions API ile rota alır (YSS dahil)"""
     try:
-        coords = [origin]
         if use_yss:
-            coords.append(YSS_COORDS)
-        coords.append(destination)
+            coords = [origin, YSS_COORDS, destination]
+        else:
+            coords = [origin, destination]
 
         body = {
             "coordinates": coords,
@@ -61,7 +61,7 @@ def get_route_with_ors(origin, destination, use_yss=False):
         return None, None
 
 # Streamlit Arayüz
-st.title("🚐 İlçe ve Şehir Bazlı Türkiye Sefer Rotaları (ORS + YSS Köprüsü)")
+st.title("🚐 İlçe & Şehir Bazlı Sefer Rota Hesaplama (ORS + YSS Köprüsü)")
 
 uploaded_file = st.file_uploader("📥 Excel dosyasını yükleyin (Çıkış ve Varış sütunları içermeli)", type=["xlsx"])
 
@@ -77,7 +77,7 @@ if uploaded_file:
         st.stop()
 
     m = folium.Map(location=[39.0, 35.0], zoom_start=6)
-    toplam = 0
+    toplam_mesafe = 0
     basarili = 0
 
     for idx, row in df.iterrows():
@@ -88,9 +88,10 @@ if uploaded_file:
         dest_coords = get_coordinates(dest_text)
 
         if not origin_coords or not dest_coords:
-            st.warning(f"Koordinat işlenemedi (satır {idx+2}): {origin_text} → {dest_text}")
+            st.warning(f"Koordinat alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
+        # İstanbul varsa YSS köprüsünü zorla
         use_yss = "İstanbul" in origin_text or "İstanbul" in dest_text
         distance_km, route = get_route_with_ors(origin_coords, dest_coords, use_yss=use_yss)
 
@@ -102,14 +103,15 @@ if uploaded_file:
         folium.Marker(location=dest_coords[::-1], popup=dest_text, icon=folium.Icon(color="green")).add_to(m)
         folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red").add_to(m)
 
-        toplam += distance_km
+        toplam_mesafe += distance_km
         basarili += 1
 
     folium_static(m)
 
     if basarili > 0:
-        st.success(f"{basarili} rota başarıyla işlendi.")
-        st.write(f"Toplam mesafe: **{toplam:.2f} km**")
+        st.success(f"{basarili} rota başarıyla hesaplandı.")
+        st.write(f"Toplam mesafe: **{toplam_mesafe:.2f} km**")
     else:
-        st.warning("Hiçbir rota başarıyla işlenemedi.")
+        st.warning("Hiçbir rota başarıyla hesaplanamadı.")
+
 
