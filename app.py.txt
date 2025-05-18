@@ -1,0 +1,4 @@
+import streamlit as st
+
+st.set_page_config(page_title="Sefer Rota Hesaplayıcı", layout="wide")
+st.title("🗺️ Sefer Rota Hesaplayıcı")
