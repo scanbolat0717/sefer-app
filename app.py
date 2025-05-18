@@ -7,10 +7,11 @@ from streamlit_folium import folium_static
 # 🔐 ORS API KEY (buraya kendi API anahtarınızı yazın)
 ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"
 
-# 🛣️ Yavuz Sultan Selim Köprüsü koordinatları (lon, lat)
-YSS_COORDS = [29.0729, 41.1858]
+# 🛣️ YSS rampalarının koordinatları (lon, lat)
+YSS_RAMP1 = [29.0386, 41.1772]  # Asya rampası
+YSS_RAMP2 = [29.0582, 41.1821]  # Avrupa rampası
 
-# Asya ve Avrupa yakası ilçeleri
+# İstanbul ilçelerinin kıtaları
 asya_ilceler = [
     "Üsküdar", "Kadıköy", "Ataşehir", "Maltepe", "Kartal", "Pendik",
     "Tuzla", "Sancaktepe", "Sultanbeyli", "Çekmeköy", "Ümraniye", "Şile", "Beykoz"
@@ -29,7 +30,7 @@ def get_kita(ilce_adi):
     for i in avrupa_ilceler:
         if i.lower() in ilce:
             return "avrupa"
-    return None  # İstanbul dışı
+    return None
 
 def get_coordinates(address):
     url = "https://api.openrouteservice.org/geocode/search"
@@ -52,7 +53,7 @@ def get_coordinates(address):
 def get_route_with_ors(origin, destination, use_yss=False):
     try:
         if use_yss:
-            coords = [origin, YSS_COORDS, destination]
+            coords = [origin, YSS_RAMP1, YSS_RAMP2, destination]
         else:
             coords = [origin, destination]
 
@@ -94,7 +95,7 @@ if uploaded_file:
         st.error("Excel dosyasında 'Çıkış' ve 'Varış' sütunları olmalı.")
         st.stop()
 
-    m = folium.Map(location=[39.0, 35.0], zoom_start=6)
+    m = folium.Map(location=[41.0, 29.0], zoom_start=9)
     toplam_mesafe = 0
     basarili = 0
 
@@ -109,7 +110,6 @@ if uploaded_file:
             st.warning(f"Koordinat alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
-        # Kıtalar arası geçiş kontrolü
         origin_kita = get_kita(origin_text)
         dest_kita = get_kita(dest_text)
 
@@ -126,7 +126,7 @@ if uploaded_file:
 
         folium.Marker(location=origin_coords[::-1], popup=origin_text, icon=folium.Icon(color="blue")).add_to(m)
         folium.Marker(location=dest_coords[::-1], popup=dest_text, icon=folium.Icon(color="green")).add_to(m)
-        folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red").add_to(m)
+        folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red", weight=4).add_to(m)
 
         toplam_mesafe += distance_km
         basarili += 1
@@ -138,3 +138,5 @@ if uploaded_file:
         st.write(f"Toplam mesafe: **{toplam_mesafe:.2f} km**")
     else:
         st.warning("Hiçbir rota başarıyla hesaplanamadı.")
+
+
