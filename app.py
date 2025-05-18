@@ -21,7 +21,7 @@ avrupa_ilceler = ["Fatih", "Eminönü", "Bakırköy", "Beşiktaş", "Şişli", "
 asya_iller = ["Adana", "Ankara", "Antalya", "Bursa", "Konya", "Kayseri", "Eskişehir", "Samsun", "Erzurum", "Diyarbakır", "Trabzon", "Mersin", "Van", "Gaziantep", "Kocaeli", "Sakarya", "Manisa", "İzmir"]
 avrupa_iller = ["Edirne", "Kırklareli", "Tekirdağ", "İstanbul"]
 
-# Kıta belirleme fonksiyonu
+# Kıta belirleme
 def get_kita(text):
     text = text.lower()
     for ilce in asya_ilceler:
@@ -38,7 +38,7 @@ def get_kita(text):
             return "avrupa"
     return None
 
-# ORS geocode
+# Adresi koordinata çevir
 def get_coordinates(address):
     url = "https://api.openrouteservice.org/geocode/search"
     headers = {
@@ -46,7 +46,7 @@ def get_coordinates(address):
         "Content-Type": "application/json"
     }
     params = {
-        "text": address,
+        "text": f"{address}, Türkiye",  # otomatik Türkiye ekle
         "boundary.country": "TR"
     }
     response = requests.get(url, headers=headers, params=params)
@@ -57,7 +57,7 @@ def get_coordinates(address):
     except:
         return None
 
-# ORS yönlendirme fonksiyonu
+# Rota alma
 def get_route_with_ors(origin, destination, use_yss_kmo=False):
     try:
         if use_yss_kmo:
@@ -88,7 +88,7 @@ def get_route_with_ors(origin, destination, use_yss_kmo=False):
         return None, None
 
 # Streamlit arayüz
-st.title("🚛 YSS + KMO Zorunlu Türkiye Rota Hesaplama")
+st.title("🚛 Türkiye Sefer Rota Hesaplama (YSS + KMO Zorunlu Geçişli)")
 
 uploaded_file = st.file_uploader("📥 Excel dosyasını yükleyin ('Çıkış' ve 'Varış' sütunları içermeli)", type=["xlsx"])
 
