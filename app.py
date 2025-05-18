@@ -5,7 +5,7 @@ import folium
 from streamlit_folium import folium_static
 
 # ORS API anahtarınızı buraya girin
-ORS_API_KEY = "YOUR_ORS_API_KEY"  # 🔁 <--- kendi anahtarını buraya yaz
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # 🔁 <--- kendi anahtarını buraya yaz
 
 def get_route_distance(origin, destination):
     url = "https://api.openrouteservice.org/v2/directions/driving-car"
