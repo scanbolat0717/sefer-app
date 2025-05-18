@@ -4,57 +4,41 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# 🔐 OpenRouteService API KEY
+# OpenRouteService API Key
 ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"
 
-# YSS rampalarının koordinatları (lon, lat)
-YSS_RAMP1 = [29.0386, 41.1772]  # Asya rampası
-YSS_RAMP2 = [29.0582, 41.1821]  # Avrupa rampası
+# Zorunlu geçiş noktaları (lon, lat)
+KMO_ASYA = [29.3575, 41.1445]       # Kuzey Marmara Otoyolu – Asya tarafı
+YSS_ASYA = [29.0386, 41.1772]       # YSS Köprüsü – Asya rampası
+YSS_AVRUPA = [29.0582, 41.1821]     # YSS Köprüsü – Avrupa rampası
+KMO_AVRUPA = [28.8100, 41.2000]     # Kuzey Marmara Otoyolu – Avrupa tarafı
 
 # İstanbul ilçeleri
-asya_ilceler = [
-    "Üsküdar", "Kadıköy", "Ataşehir", "Maltepe", "Kartal", "Pendik",
-    "Tuzla", "Sancaktepe", "Sultanbeyli", "Çekmeköy", "Ümraniye", "Şile", "Beykoz"
-]
-avrupa_ilceler = [
-    "Fatih", "Eminönü", "Bakırköy", "Beşiktaş", "Şişli", "Sarıyer",
-    "Eyüpsultan", "Kağıthane", "Bayrampaşa", "Zeytinburnu", "Avcılar",
-    "Beylikdüzü", "Esenyurt", "Başakşehir", "Bağcılar", "Gaziosmanpaşa", "Küçükçekmece"
-]
+asya_ilceler = ["Üsküdar", "Kadıköy", "Ataşehir", "Maltepe", "Kartal", "Pendik", "Tuzla", "Sancaktepe", "Sultanbeyli", "Çekmeköy", "Ümraniye", "Şile", "Beykoz"]
+avrupa_ilceler = ["Fatih", "Eminönü", "Bakırköy", "Beşiktaş", "Şişli", "Sarıyer", "Eyüpsultan", "Kağıthane", "Bayrampaşa", "Zeytinburnu", "Avcılar", "Beylikdüzü", "Esenyurt", "Başakşehir", "Bağcılar", "Gaziosmanpaşa", "Küçükçekmece"]
 
-# Türkiye şehirlerine göre kıta ayrımı
-asya_il_adi = [
-    "Adana", "Adıyaman", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın",
-    "Bartın", "Batman", "Bayburt", "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur",
-    "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli", "Diyarbakır", "Düzce",
-    "Elazığ", "Erzincan", "Erzurum", "Eskişehir", "Gaziantep", "Giresun", "Gümüşhane",
-    "Hakkari", "Hatay", "Iğdır", "Isparta", "İçel", "İzmir", "Kahramanmaraş",
-    "Karabük", "Karaman", "Kars", "Kastamonu", "Kayseri", "Kırıkkale", "Kırşehir",
-    "Kilis", "Konya", "Kütahya", "Malatya", "Manisa", "Mardin", "Muğla", "Muş",
-    "Nevşehir", "Niğde", "Ordu", "Osmaniye", "Rize", "Sakarya", "Samsun", "Siirt",
-    "Sinop", "Sivas", "Şanlıurfa", "Şırnak", "Tokat", "Trabzon", "Tunceli", "Uşak",
-    "Van", "Yalova", "Yozgat", "Zonguldak"
-]
-avrupa_il_adi = ["Edirne", "Kırklareli", "Tekirdağ", "İstanbul"]
+# Türkiye şehirleri (kıta ayrımı)
+asya_iller = ["Adana", "Ankara", "Antalya", "Bursa", "Konya", "Kayseri", "Eskişehir", "Samsun", "Erzurum", "Diyarbakır", "Trabzon", "Mersin", "Van", "Gaziantep", "Kocaeli", "Sakarya", "Manisa", "İzmir"]
+avrupa_iller = ["Edirne", "Kırklareli", "Tekirdağ", "İstanbul"]
 
-# Kıta belirleme
+# Kıta belirleme fonksiyonu
 def get_kita(text):
-    ilce = text.lower()
-    for i in asya_ilceler:
-        if i.lower() in ilce:
+    text = text.lower()
+    for ilce in asya_ilceler:
+        if ilce.lower() in text:
             return "asya"
-    for i in avrupa_ilceler:
-        if i.lower() in ilce:
+    for ilce in avrupa_ilceler:
+        if ilce.lower() in text:
             return "avrupa"
-    for i in asya_il_adi:
-        if i.lower() in ilce:
+    for il in asya_iller:
+        if il.lower() in text:
             return "asya"
-    for i in avrupa_il_adi:
-        if i.lower() in ilce:
+    for il in avrupa_iller:
+        if il.lower() in text:
             return "avrupa"
     return None
 
-# ORS geocoding: adres → koordinat
+# ORS geocode
 def get_coordinates(address):
     url = "https://api.openrouteservice.org/geocode/search"
     headers = {
@@ -73,11 +57,11 @@ def get_coordinates(address):
     except:
         return None
 
-# ORS rota alma (YSS zorunluluğu seçimiyle)
-def get_route_with_ors(origin, destination, use_yss=False):
+# ORS yönlendirme fonksiyonu
+def get_route_with_ors(origin, destination, use_yss_kmo=False):
     try:
-        if use_yss:
-            coords = [origin, YSS_RAMP1, YSS_RAMP2, destination]
+        if use_yss_kmo:
+            coords = [origin, KMO_ASYA, YSS_ASYA, YSS_AVRUPA, KMO_AVRUPA, destination]
         else:
             coords = [origin, destination]
 
@@ -100,19 +84,19 @@ def get_route_with_ors(origin, destination, use_yss=False):
         distance_km = data["features"][0]["properties"]["summary"]["distance"] / 1000
         geometry = data["features"][0]["geometry"]["coordinates"]
         return distance_km, geometry
-    except Exception as e:
+    except Exception:
         return None, None
 
 # Streamlit arayüz
-st.title("🛣️ Türkiye Geneli İlçe Bazlı Rota (YSS Zorunlu)")
+st.title("🚛 YSS + KMO Zorunlu Türkiye Rota Hesaplama")
 
-uploaded_file = st.file_uploader("📥 Excel dosyasını yükleyin (Çıkış ve Varış sütunları içermeli)", type=["xlsx"])
+uploaded_file = st.file_uploader("📥 Excel dosyasını yükleyin ('Çıkış' ve 'Varış' sütunları içermeli)", type=["xlsx"])
 
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
     except Exception as e:
-        st.error(f"Dosya okunamadı: {e}")
+        st.error(f"Excel okunamadı: {e}")
         st.stop()
 
     if "Çıkış" not in df.columns or "Varış" not in df.columns:
@@ -136,12 +120,9 @@ if uploaded_file:
 
         origin_kita = get_kita(origin_text)
         dest_kita = get_kita(dest_text)
+        use_yss_kmo = origin_kita and dest_kita and origin_kita != dest_kita
 
-        use_yss = (
-            origin_kita and dest_kita and origin_kita != dest_kita
-        )
-
-        distance_km, route = get_route_with_ors(origin_coords, dest_coords, use_yss=use_yss)
+        distance_km, route = get_route_with_ors(origin_coords, dest_coords, use_yss_kmo)
 
         if distance_km is None or route is None:
             st.warning(f"Rota alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
@@ -160,5 +141,5 @@ if uploaded_file:
         st.success(f"{basarili} rota başarıyla hesaplandı.")
         st.write(f"Toplam mesafe: **{toplam_mesafe:.2f} km**")
     else:
-        st.warning("Hiçbir rota başarıyla hesaplanamadı.")
+        st.warning("Hiçbir rota hesaplanamadı.")
 
