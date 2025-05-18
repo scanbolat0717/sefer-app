@@ -4,8 +4,8 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# OpenRouteService API anahtarı
-ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <-- Buraya kendi anahtarını yaz
+# OpenRouteService API Anahtarı
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <-- BURAYA KENDİ ANAHTARINI YAZ
 
 def get_coordinates_from_text(place_name):
     url = "https://api.openrouteservice.org/geocode/search"
@@ -13,14 +13,19 @@ def get_coordinates_from_text(place_name):
     params = {
         "text": place_name,
         "size": 1,
-        "boundary.country": "TR"
+        "boundary.country": "TR",
+        "boundary.rect.min_lon": 25.0,
+        "boundary.rect.min_lat": 35.0,
+        "boundary.rect.max_lon": 45.0,
+        "boundary.rect.max_lat": 43.0
     }
 
     try:
         response = requests.get(url, headers=headers, params=params)
         data = response.json()
         if response.status_code == 200 and data.get("features"):
-            return data["features"][0]["geometry"]["coordinates"]  # [lon, lat]
+            coords = data["features"][0]["geometry"]["coordinates"]  # [lon, lat]
+            return coords
     except Exception:
         pass
     return None
@@ -44,15 +49,15 @@ def get_route_distance(origin, destination):
         st.warning(f"ORS yanıtı işlenemedi: {e}")
         return None, None
 
-st.title("🗺️ Şehir İsimleri ile Sefer Rota Hesaplayıcı")
+st.title("🗺️ Şehir İsimleriyle Sefer Rota ve Mesafe Hesaplayıcı")
 
-uploaded_file = st.file_uploader("Excel dosyasını yükleyin (Çıkış, Varış sütunları ile)", type=["xlsx"])
+uploaded_file = st.file_uploader("Excel dosyasını yükleyin (Çıkış ve Varış sütunlarıyla)", type=["xlsx"])
 
 if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
     except Exception as e:
-        st.error(f"Excel okunamadı: {e}")
+        st.error(f"Excel dosyası okunamadı: {e}")
         st.stop()
 
     if "Çıkış" not in df.columns or "Varış" not in df.columns:
@@ -60,7 +65,7 @@ if uploaded_file:
         st.stop()
 
     m = folium.Map(location=[39.0, 35.0], zoom_start=6)
-    total_distances = []
+    toplam_mesafeler = []
 
     for idx, row in df.iterrows():
         origin_text = str(row["Çıkış"]).strip()
@@ -78,15 +83,16 @@ if uploaded_file:
             st.warning(f"Rota alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
-        total_distances.append(distance)
+        toplam_mesafeler.append(distance)
         folium.Marker(location=origin_coords[::-1], popup=origin_text, icon=folium.Icon(color="blue")).add_to(m)
         folium.Marker(location=dest_coords[::-1], popup=dest_text, icon=folium.Icon(color="green")).add_to(m)
         folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red").add_to(m)
 
     folium_static(m)
 
-    if total_distances:
-        st.success(f"{len(total_distances)} sefer işlendi.")
-        st.write(f"Toplam mesafe: **{sum(total_distances):.2f} km**")
+    if toplam_mesafeler:
+        st.success(f"{len(toplam_mesafeler)} sefer işlendi.")
+        st.write(f"Toplam mesafe: **{sum(toplam_mesafeler):.2f} km**")
     else:
         st.warning("Hiçbir sefer başarıyla işlenemedi.")
+
