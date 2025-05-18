@@ -26,12 +26,20 @@ from streamlit_folium import folium_static
     "Manisa": [27.4217, 38.6191]
 }
 
+# Yavuz Sultan Selim Köprüsü koordinatları (tam ortası) – (lon, lat)
+yss_koprusu = [29.0729, 41.1858]
+
 def get_coordinates_from_text(place_name):
     return şehir_koordinatları.get(place_name)
 
-def get_route_osrm(origin, destination):
+def get_route_osrm(origin, destination, use_yss=False):
     try:
-        url = f"http://router.project-osrm.org/route/v1/driving/{origin[0]},{origin[1]};{destination[0]},{destination[1]}?overview=full&geometries=geojson"
+        if use_yss:
+            coord_string = f"{origin[0]},{origin[1]};{yss_koprusu[0]},{yss_koprusu[1]};{destination[0]},{destination[1]}"
+        else:
+            coord_string = f"{origin[0]},{origin[1]};{destination[0]},{destination[1]}"
+        
+        url = f"http://router.project-osrm.org/route/v1/driving/{coord_string}?overview=full&geometries=geojson"
         response = requests.get(url)
         data = response.json()
         if response.status_code != 200 or "routes" not in data:
@@ -44,7 +52,7 @@ def get_route_osrm(origin, destination):
         return None, None
 
 # Streamlit Arayüzü
-st.title("🛣️ OSRM ile Türkiye Şehir Rotaları (API'siz Çalışır)")
+st.title("🛣️ Türkiye Şehirler Arası Rota Hesaplama (YSS Köprüsü Zorunlu)")
 
 uploaded_file = st.file_uploader("Excel dosyasını yükleyin (Çıkış ve Varış sütunlarıyla)", type=["xlsx"])
 
@@ -73,7 +81,10 @@ if uploaded_file:
             st.warning(f"Koordinat alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
-        distance, route = get_route_osrm(origin_coords, dest_coords)
+        # İstanbul geçişi varsa, YSS Köprüsü kullanılsın
+        yss_zorunlu = origin_text == "İstanbul" or dest_text == "İstanbul"
+
+        distance, route = get_route_osrm(origin_coords, dest_coords, use_yss=yss_zorunlu)
         if distance is None:
             st.warning(f"Rota alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
@@ -90,4 +101,5 @@ if uploaded_file:
         st.write(f"Toplam mesafe: **{sum(toplam_mesafeler):.2f} km**")
     else:
         st.warning("Hiçbir sefer başarıyla işlenemedi.")
+
 
