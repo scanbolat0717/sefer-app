@@ -2,14 +2,36 @@ import streamlit as st
 import pandas as pd
 import requests
 import folium
-from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 
-# ORS API anahtarını al
-ORS_API_KEY = st.secrets["ORS_API_KEY"]
+# OpenRouteService API anahtarınızı buraya yapıştırın
+ORS_API_KEY = "YOUR_ORS_API_KEY"  # 🔁 <--- kendi API anahtarını buraya koy
 
-st.set_page_config(page_title="Sefer Rota Hesaplama", layout="wide")
-st.title("🧭 Sefer Rota Mesafe Hesaplama Uygulaması")
+def get_route_distance(origin, destination):
+    url = "https://api.openrouteservice.org/v2/directions/driving-car"
+    headers = {"Authorization": ORS_API_KEY}
+    body = {
+        "coordinates": [origin, destination]
+    }
 
+    response = requests.post(url, json=body, headers=headers)
+    data = response.json()
+
+    if response.status_code != 200:
+        error_msg = data.get("error", {}).get("message", "Bilinmeyen hata")
+        st.warning(f"ORS API hatası ({response.status_code}): {error_msg}")
+        return None, None
+
+    try:
+        distance_km = data["features"][0]["properties"]["summary"]["distance"] / 1000
+        geometry = data["features"][0]["geometry"]["coordinates"]
+        return distance_km, geometry
+    except Exception as e:
+        st.warning(f"Yanıt işlenemedi: {e}")
+        return None, None
+
+# Streamlit arayüzü
+st.title("Sefer Rota Hesaplayıcı")
 uploaded_file = st.file_uploader("Excel dosyanızı yükleyin", type=["xlsx"])
 
 if uploaded_file:
@@ -19,88 +41,48 @@ if uploaded_file:
         st.error(f"Excel okunamadı: {e}")
         st.stop()
 
-    # Sütun kontrolü
     if "Çıkış" not in df.columns or "Varış" not in df.columns:
         st.error("Excel dosyasında 'Çıkış' ve 'Varış' sütunları bulunmalı.")
         st.stop()
 
+    map_center = [39.0, 35.0]
+    m = folium.Map(location=map_center, zoom_start=6)
+
     distances = []
-
-    # Her satır için rota hesapla
-    for index, row in df.iterrows():
+    for idx, row in df.iterrows():
         try:
-            origin = [float(i.strip()) for i in str(row["Çıkış"]).split(",")]
-            destination = [float(i.strip()) for i in str(row["Varış"]).split(",")]
+            # Temizleme
+            origin_raw = str(row["Çıkış"]).replace("[", "").replace("]", "")
+            destination_raw = str(row["Varış"]).replace("[", "").replace("]", "")
 
-            if len(origin) != 2 or len(destination) != 2:
-                st.warning(f"Geçersiz koordinat formatı: {row['Çıkış']} → {row['Varış']}")
+            # Koordinatlara çevirme
+            origin = [float(i.strip()) for i in origin_raw.split(",")]
+            destination = [float(i.strip()) for i in destination_raw.split(",")]
+
+            # Enlem, boylam → boylam, enlem
+            if len(origin) == 2:
+                origin = [origin[1], origin[0]]
+            if len(destination) == 2:
+                destination = [destination[1], destination[0]]
+
+            distance, route = get_route_distance(origin, destination)
+            if distance is None:
+                st.warning(f"Rota alınamadı (satır {idx+2})")
                 continue
 
-            # ORS API'den mesafe bilgisi al
-            def get_route_distance(origin, destination):
-                url = "https://api.openrouteservice.org/v2/directions/driving-car"
-                headers = {
-                    "Authorization": ORS_API_KEY,
-                    "Content-Type": "application/json"
-                }
-                body = {
-                    "coordinates": [origin, destination]
-                }
-
-                response = requests.post(url, json=body, headers=headers)
-                try:
-                    data = response.json()
-
-                    if response.status_code != 200:
-                        st.warning(f"ORS API hatası ({response.status_code}): {data.get('error', {}).get('message', 'Bilinmeyen hata')}")
-                        return None, None
-
-                    features = data.get("features", [])
-                    if not features:
-                        st.warning(f"Rota bulunamadı: {origin} → {destination}")
-                        return None, None
-
-                    distance_km = features[0]["properties"]["summary"]["distance"] / 1000
-                    geometry = features[0]["geometry"]["coordinates"]
-                    return round(distance_km, 2), geometry
-                except Exception as e:
-                    st.warning(f"ORS yanıt hatası: {e}")
-                    return None, None
-
-            distance, geometry = get_route_distance(origin, destination)
-
-            if distance is not None:
-                distances.append({
-                    "Çıkış": row["Çıkış"],
-                    "Varış": row["Varış"],
-                    "Mesafe (km)": distance
-                })
-
-                # Harita göster
-                m = folium.Map(location=[origin[1], origin[0]], zoom_start=10)
-                folium.Marker([origin[1], origin[0]], tooltip="Çıkış").add_to(m)
-                folium.Marker([destination[1], destination[0]], tooltip="Varış").add_to(m)
-
-                if geometry:
-                    folium.PolyLine([[coord[1], coord[0]] for coord in geometry], color="blue").add_to(m)
-
-                st.markdown(f"### 🛣️ {row['Çıkış']} → {row['Varış']}")
-                st.markdown(f"**Mesafe:** {distance} km")
-                st_folium(m, width=700, height=400)
+            distances.append(distance)
+            folium.Marker(location=origin[::-1], popup="Çıkış", icon=folium.Icon(color="blue")).add_to(m)
+            folium.Marker(location=destination[::-1], popup="Varış", icon=folium.Icon(color="green")).add_to(m)
+            folium.PolyLine(locations=[[coord[1], coord[0]] for coord in route], color="red").add_to(m)
 
         except Exception as e:
-            st.warning(f"Koordinat işlenemedi (satır {index + 2}): {e}")
+            st.warning(f"Koordinat işlenemedi (satır {idx+2}): {e}")
             continue
 
-    # Tüm sonuçları tablo olarak göster
+    folium_static(m)
+
     if distances:
-        result_df = pd.DataFrame(distances)
-        st.markdown("## 📊 Tüm Mesafeler")
-        st.dataframe(result_df)
-
-        # Excel çıktısı indir
-        output = result_df.to_excel(index=False)
-        st.download_button("📥 Sonuçları indir (Excel)", data=output, file_name="rota_sonuclari.xlsx")
-
-else:
-    st.info("Lütfen yukarıdan Excel dosyanızı yükleyin.")
+        st.success(f"Toplam {len(distances)} sefer işlendi.")
+        st.write(f"Toplam mesafe: {sum(distances):.2f} km")
+    else:
+        st.warning("Hiçbir sefer işlenemedi.")
