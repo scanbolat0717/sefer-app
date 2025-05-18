@@ -4,8 +4,8 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# OpenRouteService API anahtarını buraya yaz
-ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # 🔁 BURAYA KENDİ ANAHTARINI YAZ
+# OpenRouteService API anahtarı
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <-- Buraya kendi anahtarını yaz
 
 def get_coordinates_from_text(place_name):
     url = "https://api.openrouteservice.org/geocode/search"
@@ -32,20 +32,11 @@ def get_route_distance(origin, destination):
         "coordinates": [origin, destination]
     }
 
-    response = requests.post(url, json=body, headers=headers)
-
     try:
+        response = requests.post(url, json=body, headers=headers)
         data = response.json()
-    except ValueError:
-        st.warning(f"ORS API JSON yanıtı çözülemedi. Ham içerik: {response.text}")
-        return None, None
-
-    if response.status_code != 200:
-        error_msg = data.get("error", {}).get("message", "Bilinmeyen hata")
-        st.warning(f"ORS API hatası ({response.status_code}): {error_msg}")
-        return None, None
-
-    try:
+        if response.status_code != 200 or "features" not in data:
+            return None, None
         distance_km = data["features"][0]["properties"]["summary"]["distance"] / 1000
         geometry = data["features"][0]["geometry"]["coordinates"]
         return distance_km, geometry
@@ -53,10 +44,9 @@ def get_route_distance(origin, destination):
         st.warning(f"ORS yanıtı işlenemedi: {e}")
         return None, None
 
-# Streamlit Arayüzü
-st.title("🚗 Şehir Bazlı Sefer Rota Hesaplayıcı")
+st.title("🗺️ Şehir İsimleri ile Sefer Rota Hesaplayıcı")
 
-uploaded_file = st.file_uploader("Excel dosyanızı yükleyin (Çıkış, Varış sütunlarıyla)", type=["xlsx"])
+uploaded_file = st.file_uploader("Excel dosyasını yükleyin (Çıkış, Varış sütunları ile)", type=["xlsx"])
 
 if uploaded_file:
     try:
@@ -70,34 +60,33 @@ if uploaded_file:
         st.stop()
 
     m = folium.Map(location=[39.0, 35.0], zoom_start=6)
-    distances = []
+    total_distances = []
 
     for idx, row in df.iterrows():
-        origin_name = str(row["Çıkış"]).strip()
-        dest_name = str(row["Varış"]).strip()
+        origin_text = str(row["Çıkış"]).strip()
+        dest_text = str(row["Varış"]).strip()
 
-        origin_coords = get_coordinates_from_text(origin_name)
-        dest_coords = get_coordinates_from_text(dest_name)
+        origin_coords = get_coordinates_from_text(origin_text)
+        dest_coords = get_coordinates_from_text(dest_text)
 
         if not origin_coords or not dest_coords:
-            st.warning(f"Koordinat bulunamadı (satır {idx+2}): {origin_name} → {dest_name}")
+            st.warning(f"Koordinat alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
         distance, route = get_route_distance(origin_coords, dest_coords)
         if distance is None:
-            st.warning(f"Rota alınamadı (satır {idx+2})")
+            st.warning(f"Rota alınamadı (satır {idx+2}): {origin_text} → {dest_text}")
             continue
 
-        distances.append(distance)
-
-        folium.Marker(location=origin_coords[::-1], popup=origin_name, icon=folium.Icon(color="blue")).add_to(m)
-        folium.Marker(location=dest_coords[::-1], popup=dest_name, icon=folium.Icon(color="green")).add_to(m)
+        total_distances.append(distance)
+        folium.Marker(location=origin_coords[::-1], popup=origin_text, icon=folium.Icon(color="blue")).add_to(m)
+        folium.Marker(location=dest_coords[::-1], popup=dest_text, icon=folium.Icon(color="green")).add_to(m)
         folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red").add_to(m)
 
     folium_static(m)
 
-    if distances:
-        st.success(f"✅ {len(distances)} sefer işlendi.")
-        st.write(f"🛣️ Toplam mesafe: **{sum(distances):.2f} km**")
+    if total_distances:
+        st.success(f"{len(total_distances)} sefer işlendi.")
+        st.write(f"Toplam mesafe: **{sum(total_distances):.2f} km**")
     else:
         st.warning("Hiçbir sefer başarıyla işlenemedi.")
