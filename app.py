@@ -4,8 +4,26 @@ import requests
 import folium
 from streamlit_folium import folium_static
 
-# ORS API anahtarınızı buraya girin
-ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # 🔁 <--- kendi anahtarını buraya yaz
+# OpenRouteService API anahtarını buraya yaz
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # 🔁 BURAYA KENDİ ANAHTARINI YAZ
+
+def get_coordinates_from_text(place_name):
+    url = "https://api.openrouteservice.org/geocode/search"
+    headers = {"Authorization": ORS_API_KEY}
+    params = {
+        "text": place_name,
+        "size": 1,
+        "boundary.country": "TR"
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        data = response.json()
+        if response.status_code == 200 and data.get("features"):
+            return data["features"][0]["geometry"]["coordinates"]  # [lon, lat]
+    except Exception:
+        pass
+    return None
 
 def get_route_distance(origin, destination):
     url = "https://api.openrouteservice.org/v2/directions/driving-car"
@@ -35,10 +53,10 @@ def get_route_distance(origin, destination):
         st.warning(f"ORS yanıtı işlenemedi: {e}")
         return None, None
 
-# Streamlit arayüzü
-st.title("🚗 Sefer Rota Hesaplayıcı")
+# Streamlit Arayüzü
+st.title("🚗 Şehir Bazlı Sefer Rota Hesaplayıcı")
 
-uploaded_file = st.file_uploader("Excel dosyanızı yükleyin", type=["xlsx"])
+uploaded_file = st.file_uploader("Excel dosyanızı yükleyin (Çıkış, Varış sütunlarıyla)", type=["xlsx"])
 
 if uploaded_file:
     try:
@@ -51,42 +69,30 @@ if uploaded_file:
         st.error("Excel'de 'Çıkış' ve 'Varış' sütunları bulunmalı.")
         st.stop()
 
-    map_center = [39.0, 35.0]
-    m = folium.Map(location=map_center, zoom_start=6)
-
+    m = folium.Map(location=[39.0, 35.0], zoom_start=6)
     distances = []
 
     for idx, row in df.iterrows():
-        try:
-            # Temizleme
-            origin_raw = str(row["Çıkış"]).replace("[", "").replace("]", "")
-            destination_raw = str(row["Varış"]).replace("[", "").replace("]", "")
+        origin_name = str(row["Çıkış"]).strip()
+        dest_name = str(row["Varış"]).strip()
 
-            # Sayılara çevirme
-            origin = [float(i.strip()) for i in origin_raw.split(",")]
-            destination = [float(i.strip()) for i in destination_raw.split(",")]
+        origin_coords = get_coordinates_from_text(origin_name)
+        dest_coords = get_coordinates_from_text(dest_name)
 
-            # Enlem-boylam düzeltme: [lat, lon] → [lon, lat]
-            if len(origin) == 2:
-                origin = [origin[1], origin[0]]
-            if len(destination) == 2:
-                destination = [destination[1], destination[0]]
-
-            # ORS API ile mesafe ve rota alma
-            distance, route = get_route_distance(origin, destination)
-            if distance is None:
-                st.warning(f"Rota alınamadı (satır {idx+2})")
-                continue
-
-            # Harita ve listeye ekle
-            distances.append(distance)
-            folium.Marker(location=origin[::-1], popup="Çıkış", icon=folium.Icon(color="blue")).add_to(m)
-            folium.Marker(location=destination[::-1], popup="Varış", icon=folium.Icon(color="green")).add_to(m)
-            folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red").add_to(m)
-
-        except Exception as e:
-            st.warning(f"Koordinat işlenemedi (satır {idx+2}): {e}")
+        if not origin_coords or not dest_coords:
+            st.warning(f"Koordinat bulunamadı (satır {idx+2}): {origin_name} → {dest_name}")
             continue
+
+        distance, route = get_route_distance(origin_coords, dest_coords)
+        if distance is None:
+            st.warning(f"Rota alınamadı (satır {idx+2})")
+            continue
+
+        distances.append(distance)
+
+        folium.Marker(location=origin_coords[::-1], popup=origin_name, icon=folium.Icon(color="blue")).add_to(m)
+        folium.Marker(location=dest_coords[::-1], popup=dest_name, icon=folium.Icon(color="green")).add_to(m)
+        folium.PolyLine(locations=[[pt[1], pt[0]] for pt in route], color="red").add_to(m)
 
     folium_static(m)
 
