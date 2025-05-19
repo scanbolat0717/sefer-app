@@ -65,7 +65,7 @@ if uploaded_file:
     if 'Çıkış' not in df.columns or 'Varış' not in df.columns:
         st.error("Excel dosyasında 'Çıkış' ve 'Varış' sütunları bulunmalı.")
     else:
-        m = folium.Map(location=[39.0, 35.0], zoom_start=6)
+        m = folium.Map(location=[30.0, 30.0], zoom_start=6)
         results = []
 
         for idx, row in df.iterrows():
