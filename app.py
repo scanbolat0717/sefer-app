@@ -30,16 +30,16 @@ def rota_ve_mesafe_hesapla(ilk, son):
         yasakli_bolgeler = {
             "type": "MultiPolygon",
             "coordinates": [
-                [[  # Osmangazi
+                [  # Osmangazi
                     [29.45, 40.6], [29.8, 40.6],
                     [29.8, 40.8], [29.45, 40.8],
                     [29.45, 40.6]
-                ]],
-                [[  # Çanakkale
+                ],
+                [  # Çanakkale
                     [26.25, 40.1], [26.75, 40.1],
                     [26.75, 40.5], [26.25, 40.5],
                     [26.25, 40.1]
-                ]]
+                ]
             ]
         }
 
