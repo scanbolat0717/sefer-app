@@ -5,7 +5,7 @@ from geopy.geocoders import Nominatim
 import time
 
 # === ORS API KEY ===
-ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <-- Buraya kendi ORS API anahtarını yaz
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # Buraya kendi OpenRouteService API anahtarını yaz
 
 client = openrouteservice.Client(key=ORS_API_KEY)
 geolocator = Nominatim(user_agent="ilce_rotasi_web")
@@ -20,22 +20,21 @@ def ilce_koordinat_getir(ilce_adi):
 
 def rota_ve_mesafe_hesapla(ilk, son):
     try:
-        # Yavuz Sultan Selim Köprüsü koordinatları
         yss_koprusu = [29.0742, 41.1995]
 
-        # Osmangazi ve Çanakkale köprülerinin bulunduğu bölgelerden kaçın
+        # Küçültülmüş yasaklı bölgeler (Osmangazi ve Çanakkale köprü çevresi)
         yasakli_bolgeler = {
             "type": "MultiPolygon",
             "coordinates": [
-                [[
-                    [29.45, 40.6], [29.8, 40.6],
-                    [29.8, 40.8], [29.45, 40.8],
-                    [29.45, 40.6]
+                [[  # Osmangazi çevresi
+                    [29.55, 40.63], [29.65, 40.63],
+                    [29.65, 40.73], [29.55, 40.73],
+                    [29.55, 40.63]
                 ]],
-                [[
-                    [26.25, 40.1], [26.75, 40.1],
-                    [26.75, 40.5], [26.25, 40.5],
-                    [26.25, 40.1]
+                [[  # Çanakkale çevresi
+                    [26.35, 40.12], [26.45, 40.12],
+                    [26.45, 40.22], [26.35, 40.22],
+                    [26.35, 40.12]
                 ]]
             ]
         }
@@ -45,7 +44,6 @@ def rota_ve_mesafe_hesapla(ilk, son):
         to_asya = son[0] > avrupa_lon
         kopru_zorunlu = from_asya != to_asya
 
-        # Kıta geçişi varsa YSS köprüsünü dahil et
         if kopru_zorunlu:
             koordinatlar = [ilk, yss_koprusu, son]
         else:
@@ -74,9 +72,10 @@ def rota_ve_mesafe_hesapla(ilk, son):
 # === Streamlit Arayüzü ===
 st.title("🚛 İlçe Bazlı Rota Hesaplayıcı")
 st.markdown("""
-Excel dosyanızda **'Çıkış'** ve **'Varış'** adında iki sütun olmalı.  
-Bu uygulama kıta geçişlerinde *Yavuz Sultan Selim Köprüsü* kullanır.  
-*Osmangazi, Çanakkale köprüleri* ve *feribotlar* yasaktır.
+Excel dosyanızda **'Çıkış'** ve **'Varış'** sütunları olmalı.  
+- Kıta geçişinde **Yavuz Sultan Selim Köprüsü** zorunludur.  
+- **Osmangazi ve Çanakkale köprüleri** yasaklıdır.  
+- **Feribot kullanılmaz.**
 """)
 
 yuklenen_dosya = st.file_uploader("📄 Excel Dosyası Yükle (.xlsx)", type=["xlsx"])
@@ -104,7 +103,7 @@ if yuklenen_dosya:
                 mesafeler.append(mesafe)
                 linkler.append(link)
 
-                time.sleep(1)  # API limitine uymak için bekleme süresi
+                time.sleep(1)  # API sınırına uymak için
 
         df["Mesafe (km)"] = mesafeler
         df["Rota Linki"] = linkler
