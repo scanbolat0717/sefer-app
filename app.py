@@ -5,7 +5,7 @@ from geopy.geocoders import Nominatim
 import time
 
 # === ORS API KEY ===
-ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <== BURAYA KENDİ API ANAHTARINI YAZ
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <-- Buraya kendi ORS API anahtarını yaz
 
 client = openrouteservice.Client(key=ORS_API_KEY)
 geolocator = Nominatim(user_agent="ilce_rotasi_web")
@@ -20,20 +20,23 @@ def ilce_koordinat_getir(ilce_adi):
 
 def rota_ve_mesafe_hesapla(ilk, son):
     try:
+        # Yavuz Sultan Selim Köprüsü koordinatları
         yss_koprusu = [29.0742, 41.1995]
+
+        # Osmangazi ve Çanakkale köprülerinin bulunduğu bölgelerden kaçın
         yasakli_bolgeler = {
             "type": "MultiPolygon",
             "coordinates": [
-                [
+                [[
                     [29.45, 40.6], [29.8, 40.6],
                     [29.8, 40.8], [29.45, 40.8],
                     [29.45, 40.6]
-                ],
-                [
+                ]],
+                [[
                     [26.25, 40.1], [26.75, 40.1],
                     [26.75, 40.5], [26.25, 40.5],
                     [26.25, 40.1]
-                ]
+                ]]
             ]
         }
 
@@ -42,6 +45,7 @@ def rota_ve_mesafe_hesapla(ilk, son):
         to_asya = son[0] > avrupa_lon
         kopru_zorunlu = from_asya != to_asya
 
+        # Kıta geçişi varsa YSS köprüsünü dahil et
         if kopru_zorunlu:
             koordinatlar = [ilk, yss_koprusu, son]
         else:
@@ -51,8 +55,10 @@ def rota_ve_mesafe_hesapla(ilk, son):
             coordinates=koordinatlar,
             profile='driving-car',
             format='geojson',
-            avoid_polygons=yasakli_bolgeler,
-            options={"avoid_features": ["ferries"]}
+            options={
+                "avoid_polygons": yasakli_bolgeler,
+                "avoid_features": ["ferries"]
+            }
         )
 
         mesafe = rota['features'][0]['properties']['segments'][0]['distance'] / 1000
@@ -66,25 +72,25 @@ def rota_ve_mesafe_hesapla(ilk, son):
         return None, f"Hata: {str(e)}"
 
 # === Streamlit Arayüzü ===
-st.title("🚚 İlçe Bazlı Rota Hesaplayıcı")
+st.title("🚛 İlçe Bazlı Rota Hesaplayıcı")
 st.markdown("""
 Excel dosyanızda **'Çıkış'** ve **'Varış'** adında iki sütun olmalı.  
 Bu uygulama kıta geçişlerinde *Yavuz Sultan Selim Köprüsü* kullanır.  
 *Osmangazi, Çanakkale köprüleri* ve *feribotlar* yasaktır.
 """)
 
-yuklenen_dosya = st.file_uploader("📁 Excel Dosyası Yükle (.xlsx)", type=["xlsx"])
+yuklenen_dosya = st.file_uploader("📄 Excel Dosyası Yükle (.xlsx)", type=["xlsx"])
 
 if yuklenen_dosya:
     df = pd.read_excel(yuklenen_dosya)
 
     if "Çıkış" not in df.columns or "Varış" not in df.columns:
-        st.error("❌ Lütfen 'Çıkış' ve 'Varış' sütunlarını içeren bir dosya yükleyin.")
+        st.error("❌ 'Çıkış' ve 'Varış' sütunları bulunamadı.")
     else:
         mesafeler = []
         linkler = []
 
-        with st.spinner("🧭 Rotalar hesaplanıyor..."):
+        with st.spinner("📍 Rotalar hesaplanıyor..."):
             for index, row in df.iterrows():
                 cikis = ilce_koordinat_getir(row["Çıkış"])
                 varis = ilce_koordinat_getir(row["Varış"])
@@ -98,17 +104,16 @@ if yuklenen_dosya:
                 mesafeler.append(mesafe)
                 linkler.append(link)
 
-                time.sleep(1)  # ORS API limitine uymak için bekle
+                time.sleep(1)  # API limitine uymak için bekleme süresi
 
         df["Mesafe (km)"] = mesafeler
         df["Rota Linki"] = linkler
 
-        st.success("✅ Rotalar başarıyla hesaplandı.")
+        st.success("✅ Hesaplama tamamlandı.")
         st.dataframe(df)
 
-        # İndirilebilir Excel
         from io import BytesIO
         buffer = BytesIO()
         df.to_excel(buffer, index=False)
-        st.download_button("📥 Sonuçları İndir (.xlsx)", data=buffer.getvalue(), file_name="rotali_sonuclar.xlsx")
+        st.download_button("📥 Sonuçları İndir (.xlsx)", data=buffer.getvalue(), file_name="rota_sonuclari.xlsx")
 
