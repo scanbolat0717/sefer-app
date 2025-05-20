@@ -23,7 +23,7 @@ def ilce_koordinat_getir(ilce_adi):
 # === Rota ve Mesafe Hesaplama ===
 def rota_ve_mesafe_hesapla(ilk, son):
     try:
-        yss_koprusu = [29.0742, 41.1995]
+        yss_koprusu = [29.118, 41.20]
         avrupa_lon = 28.8
         from_asya = ilk[0] > avrupa_lon
         to_asya = son[0] > avrupa_lon
