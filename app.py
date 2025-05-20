@@ -1,17 +1,15 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
+import streamlit as st
 import pandas as pd
 import openrouteservice
 from geopy.geocoders import Nominatim
 import time
 
-# === OpenRouteService API Anahtarı ===
-ORS_API_KEY = "YOUR_ORS_API_KEY"  # <-- BURAYA KENDİ ANAHTARINI YAZ
+# === ORS API KEY ===
+ORS_API_KEY = "5b3ce3597851110001cf6248df20429e7cbf4319809f3fd4eca2bc93"  # <== BURAYA KENDİ API ANAHTARINI YAZ
 
 client = openrouteservice.Client(key=ORS_API_KEY)
-geolocator = Nominatim(user_agent="ilce_rotasi")
+geolocator = Nominatim(user_agent="ilce_rotasi_web")
 
-# === İlçe adını koordinata çevir ===
 def ilce_koordinat_getir(ilce_adi):
     try:
         location = geolocator.geocode(f"{ilce_adi}, Türkiye")
@@ -20,22 +18,18 @@ def ilce_koordinat_getir(ilce_adi):
     except:
         return None
 
-# === Rota ve mesafe hesaplama ===
 def rota_ve_mesafe_hesapla(ilk, son):
     try:
-        # Yavuz Sultan Selim Köprüsü (YSS) koordinatları
         yss_koprusu = [29.0742, 41.1995]
-
-        # Yasaklı bölgeler: Osmangazi ve Çanakkale köprüleri çevresi
         yasakli_bolgeler = {
             "type": "MultiPolygon",
             "coordinates": [
-                [  # Osmangazi
+                [
                     [29.45, 40.6], [29.8, 40.6],
                     [29.8, 40.8], [29.45, 40.8],
                     [29.45, 40.6]
                 ],
-                [  # Çanakkale
+                [
                     [26.25, 40.1], [26.75, 40.1],
                     [26.75, 40.5], [26.25, 40.5],
                     [26.25, 40.1]
@@ -43,7 +37,6 @@ def rota_ve_mesafe_hesapla(ilk, son):
             ]
         }
 
-        # Kıta değişimi kontrolü
         avrupa_lon = 28.8
         from_asya = ilk[0] > avrupa_lon
         to_asya = son[0] > avrupa_lon
@@ -72,57 +65,50 @@ def rota_ve_mesafe_hesapla(ilk, son):
     except Exception as e:
         return None, f"Hata: {str(e)}"
 
-# === Excel işle ve yaz ===
-def dosya_sec_ve_isle():
-    dosya_yolu = filedialog.askopenfilename(filetypes=[("Excel Dosyaları", "*.xlsx")])
-    if not dosya_yolu:
-        return
+# === Streamlit Arayüzü ===
+st.title("🚚 İlçe Bazlı Rota Hesaplayıcı")
+st.markdown("""
+Excel dosyanızda **'Çıkış'** ve **'Varış'** adında iki sütun olmalı.  
+Bu uygulama kıta geçişlerinde *Yavuz Sultan Selim Köprüsü* kullanır.  
+*Osmangazi, Çanakkale köprüleri* ve *feribotlar* yasaktır.
+""")
 
-    try:
-        df = pd.read_excel(dosya_yolu)
+yuklenen_dosya = st.file_uploader("📁 Excel Dosyası Yükle (.xlsx)", type=["xlsx"])
 
-        if "Çıkış" not in df.columns or "Varış" not in df.columns:
-            messagebox.showerror("Hata", "Excel'de 'Çıkış' ve 'Varış' sütunları bulunmalı.")
-            return
+if yuklenen_dosya:
+    df = pd.read_excel(yuklenen_dosya)
 
+    if "Çıkış" not in df.columns or "Varış" not in df.columns:
+        st.error("❌ Lütfen 'Çıkış' ve 'Varış' sütunlarını içeren bir dosya yükleyin.")
+    else:
         mesafeler = []
         linkler = []
 
-        for index, row in df.iterrows():
-            cikis = ilce_koordinat_getir(row["Çıkış"])
-            varis = ilce_koordinat_getir(row["Varış"])
+        with st.spinner("🧭 Rotalar hesaplanıyor..."):
+            for index, row in df.iterrows():
+                cikis = ilce_koordinat_getir(row["Çıkış"])
+                varis = ilce_koordinat_getir(row["Varış"])
 
-            if not cikis or not varis:
-                mesafeler.append("Koordinat bulunamadı")
-                linkler.append("Yok")
-                continue
+                if not cikis or not varis:
+                    mesafeler.append("Koordinat bulunamadı")
+                    linkler.append("Yok")
+                    continue
 
-            mesafe, link = rota_ve_mesafe_hesapla(cikis, varis)
-            mesafeler.append(mesafe)
-            linkler.append(link)
+                mesafe, link = rota_ve_mesafe_hesapla(cikis, varis)
+                mesafeler.append(mesafe)
+                linkler.append(link)
 
-            time.sleep(1)  # API sınırına uymak için bekle
+                time.sleep(1)  # ORS API limitine uymak için bekle
 
         df["Mesafe (km)"] = mesafeler
         df["Rota Linki"] = linkler
 
-        yeni_yol = dosya_yolu.replace(".xlsx", "_rotali.xlsx")
-        df.to_excel(yeni_yol, index=False)
-        messagebox.showinfo("Tamamlandı", f"İşlem tamamlandı.\nKayıt: {yeni_yol}")
+        st.success("✅ Rotalar başarıyla hesaplandı.")
+        st.dataframe(df)
 
-    except Exception as e:
-        messagebox.showerror("Hata", str(e))
-
-# === Arayüz (Tkinter) ===
-pencere = tk.Tk()
-pencere.title("İlçe Bazlı Rota Oluşturucu")
-pencere.geometry("420x180")
-
-etiket = tk.Label(pencere, text="Excel'de 'Çıkış' ve 'Varış' ilçeleri olan dosyayı seçin.")
-etiket.pack(pady=20)
-
-buton = tk.Button(pencere, text="Excel Dosyası Seç ve Hesapla", command=dosya_sec_ve_isle)
-buton.pack(pady=10)
-
-pencere.mainloop()
+        # İndirilebilir Excel
+        from io import BytesIO
+        buffer = BytesIO()
+        df.to_excel(buffer, index=False)
+        st.download_button("📥 Sonuçları İndir (.xlsx)", data=buffer.getvalue(), file_name="rotali_sonuclar.xlsx")
 
